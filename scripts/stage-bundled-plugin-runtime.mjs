@@ -35,7 +35,18 @@ function ensureSymlink(targetValue, targetPath, type) {
 }
 
 function symlinkPath(sourcePath, targetPath, type) {
-  ensureSymlink(relativeSymlinkTarget(sourcePath, targetPath), targetPath, type);
+  try {
+    ensureSymlink(relativeSymlinkTarget(sourcePath, targetPath), targetPath, type);
+  } catch (error) {
+    // Windows sandboxes and non-elevated shells often cannot create file symlinks.
+    // Fall back to copying the file so local/source builds can still complete.
+    if (process.platform === "win32" && error?.code === "EPERM") {
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.copyFileSync(sourcePath, targetPath);
+      return;
+    }
+    throw error;
+  }
 }
 
 function shouldWrapRuntimeJsFile(sourcePath) {
